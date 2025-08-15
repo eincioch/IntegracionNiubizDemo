@@ -1,0 +1,83 @@
+@model IntegracionNiubizDemo.Application.Dtos.ConfirmResult
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Resultado del pago";
+    var estado = Model.Success ? "Pago aprobado" : "Pago rechazado";
+
+    string? actionCode = null, actionDescription = null, transactionDate = null, brand = null, eci = null, eciDescription = null, traceNumber = null;
+    string pretty = Model.RawJson ?? "{}";
+
+    try
+    {
+        using var doc = JsonDocument.Parse(Model.RawJson ?? "{}");
+        var root = doc.RootElement;
+
+        if (root.TryGetProperty("order", out var orderEl))
+        {
+            if (orderEl.TryGetProperty("actionCode", out var v)) actionCode = v.GetString();
+            if (orderEl.TryGetProperty("transactionDate", out var v2)) transactionDate = v2.GetString();
+            if (orderEl.TryGetProperty("traceNumber", out var v3)) traceNumber = v3.GetString();
+        }
+
+        if (root.TryGetProperty("dataMap", out var dm))
+        {
+            if (dm.TryGetProperty("ACTION_CODE", out var v)) actionCode = actionCode ?? v.GetString();
+            if (dm.TryGetProperty("ACTION_DESCRIPTION", out var v2)) actionDescription = v2.GetString();
+            if (dm.TryGetProperty("TRANSACTION_DATE", out var v3)) transactionDate = transactionDate ?? v3.GetString();
+            if (dm.TryGetProperty("BRAND", out var v4)) brand = v4.GetString();
+            if (dm.TryGetProperty("ECI", out var v5)) eci = v5.GetString();
+            if (dm.TryGetProperty("ECI_DESCRIPTION", out var v6)) eciDescription = v6.GetString();
+            if (dm.TryGetProperty("TRACE_NUMBER", out var v7)) traceNumber = traceNumber ?? v7.GetString();
+        }
+
+        pretty = JsonSerializer.Serialize(JsonDocument.Parse(Model.RawJson ?? "{}"), new JsonSerializerOptions { WriteIndented = true });
+    }
+    catch
+    {
+        pretty = Model.RawJson ?? "{}";
+    }
+}
+
+<h2>@estado</h2>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Número de compra</dt>
+      <dd class="col-sm-9">@Model.PurchaseNumber</dd>
+
+      <dt class="col-sm-3">Código de autorización</dt>
+      <dd class="col-sm-9">@Model.AuthorizationCode ?? "-"</dd>
+
+      <dt class="col-sm-3">Tarjeta</dt>
+      <dd class="col-sm-9">@Model.MaskedCard ?? "-"</dd>
+
+      <dt class="col-sm-3">Action code</dt>
+      <dd class="col-sm-9">@actionCode ?? "-"</dd>
+
+      <dt class="col-sm-3">Descripción</dt>
+      <dd class="col-sm-9">@actionDescription ?? "-"</dd>
+
+      <dt class="col-sm-3">Fecha transacción</dt>
+      <dd class="col-sm-9">@transactionDate ?? "-"</dd>
+
+      <dt class="col-sm-3">Marca</dt>
+      <dd class="col-sm-9">@brand ?? "-"</dd>
+
+      <dt class="col-sm-3">ECI</dt>
+      <dd class="col-sm-9">@eci ?? "-"</dd>
+
+      <dt class="col-sm-3">ECI descripción</dt>
+      <dd class="col-sm-9">@eciDescription ?? "-"</dd>
+
+      <dt class="col-sm-3">Trace</dt>
+      <dd class="col-sm-9">@traceNumber ?? "-"</dd>
+    </dl>
+  </div>
+</div>
+
+<h4>Trama de respuesta</h4>
+<pre style="white-space: pre-wrap; word-wrap: break-word;">@pretty</pre>
+
+<a class="btn btn-secondary mt-2" href="@Url.Action("Index","Products")">Volver</a>

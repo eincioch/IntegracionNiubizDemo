@@ -1,0 +1,30 @@
+@model IReadOnlyList<IntegracionNiubizDemo.Domain.Entities.Product>
+
+@{
+    ViewData["Title"] = "Productos";
+}
+
+@if (TempData["PaymentMessage"] != null)
+{
+    <div class="alert alert-info">@TempData["PaymentMessage"]</div>
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<table class="table table-striped">
+  <thead>
+    <tr><th>Nombre</th><th class="text-end">Precio</th><th></th></tr>
+  </thead>
+  <tbody>
+  @foreach (var p in Model)
+  {
+    <tr>
+      <td>@p.Name</td>
+      <td class="text-end">@p.Price.ToString("C")</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-success" asp-controller="Checkout" asp-action="Pay" asp-route-productId="@p.Id">Comprar</a>
+      </td>
+    </tr>
+  }
+  </tbody>
+</table>

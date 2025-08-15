@@ -1,0 +1,53 @@
+@model IntegracionNiubizDemo.Application.Dtos.CheckoutInitResult
+@{
+    ViewData["Title"] = "Pagar compra";
+}
+
+<h2>Pagar compra</h2>
+<p>Monto: @Model.Amount @Model.Currency</p>
+
+<form action="/checkout/confirm" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="purchaseNumber" value="@Model.PurchaseNumber" />
+    <input type="hidden" id="transactionToken" name="transactionToken" />
+    
+    <script type="text/javascript" 
+            src="@Model.StaticJsUrl"
+            data-sessiontoken="@Model.SessionKey"
+            data-channel="web"
+            data-merchantid="@Model.MerchantId"
+            data-purchasenumber="@Model.PurchaseNumber"
+            data-amount="@Model.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+            data-currency="@Model.Currency"
+            data-expirationminutes="20"
+            data-timeouturl="about:blank"
+            data-merchantlogo=""
+            data-formbuttoncolor="#007bff">
+    </script>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // El SDK de Niubiz automáticamente detecta el script con data-* y configura el checkout
+    // Cuando se complete el pago, el SDK automáticamente enviará el formulario
+    
+    // Opcional: Agregar listeners para eventos del SDK si es necesario
+    if (window.VISA && window.VISA.checkout) {
+        // Configuración adicional si es requerida
+        console.log('SDK de Niubiz cargado correctamente');
+    }
+});
+</script>
+<script>
+(function () {
+  var form = document.querySelector('form[action="/checkout/confirm"][method="post"]');
+  if (!form) return;
+  var mine = form.querySelector('#transactionToken');
+  form.addEventListener('submit', function () {
+    var sdkTok = form.querySelector('input[name="tokenId"]') 
+              || form.querySelector('input[name="token"]') 
+              || form.querySelector('input[name="transactionToken"]');
+    if (sdkTok && sdkTok.value && mine) mine.value = sdkTok.value;
+  });
+})();
+</script>

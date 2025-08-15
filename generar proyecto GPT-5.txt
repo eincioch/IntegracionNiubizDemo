@@ -1,0 +1,328 @@
+# Ajusta esta ruta si tu repo está en otro lugar
+Set-Location F:\Repos\IntegracionNiubizDemo
+
+# (Opcional) Fija el SDK a 9.x si ya lo tienes
+# dotnet new globaljson --sdk-version 9.0.100 --force
+
+# 1) Solución y proyectos
+dotnet new sln -n IntegracionNiubizDemo
+
+dotnet new mvc         -n IntegracionNiubizDemo.Web        -f net9.0
+dotnet new classlib    -n IntegracionNiubizDemo.Domain     -f net9.0
+dotnet new classlib    -n IntegracionNiubizDemo.Application -f net9.0
+dotnet new classlib    -n IntegracionNiubizDemo.Persistence -f net9.0
+dotnet new classlib    -n IntegracionNiubizDemo.Infrastructure -f net9.0
+
+# 2) Añadir a la solución
+dotnet sln .\IntegracionNiubizDemo.sln add `
+  .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj `
+  .\IntegracionNiubizDemo.Domain\IntegracionNiubizDemo.Domain.csproj `
+  .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj `
+  .\IntegracionNiubizDemo.Persistence\IntegracionNiubizDemo.Persistence.csproj `
+  .\IntegracionNiubizDemo.Infrastructure\IntegracionNiubizDemo.Infrastructure.csproj
+
+# 3) Referencias entre capas
+dotnet add .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj reference `
+  .\IntegracionNiubizDemo.Domain\IntegracionNiubizDemo.Domain.csproj
+
+dotnet add .\IntegracionNiubizDemo.Persistence\IntegracionNiubizDemo.Persistence.csproj reference `
+  .\IntegracionNiubizDemo.Domain\IntegracionNiubizDemo.Domain.csproj `
+  .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj
+
+dotnet add .\IntegracionNiubizDemo.Infrastructure\IntegracionNiubizDemo.Infrastructure.csproj reference `
+  .\IntegracionNiubizDemo.Persistence\IntegracionNiubizDemo.Persistence.csproj `
+  .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj `
+  .\IntegracionNiubizDemo.Domain\IntegracionNiubizDemo.Domain.csproj
+
+dotnet add .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj reference `
+  .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj `
+  .\IntegracionNiubizDemo.Infrastructure\IntegracionNiubizDemo.Infrastructure.csproj
+
+# 4) Paquetes NuGet (EF Core)
+dotnet add .\IntegracionNiubizDemo.Persistence\IntegracionNiubizDemo.Persistence.csproj package Microsoft.EntityFrameworkCore
+dotnet add .\IntegracionNiubizDemo.Infrastructure\IntegracionNiubizDemo.Infrastructure.csproj package Microsoft.EntityFrameworkCore
+dotnet add .\IntegracionNiubizDemo.Infrastructure\IntegracionNiubizDemo.Infrastructure.csproj package Microsoft.EntityFrameworkCore.InMemory
+dotnet add .\IntegracionNiubizDemo.Application\IntegracionNiubizDemo.Application.csproj package Microsoft.Extensions.DependencyInjection
+
+
+# 5) Código de las capas
+
+# Dominio
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Domain\Entities | Out-Null
+@'
+namespace IntegracionNiubizDemo.Domain.Entities;
+
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Domain\Entities\Product.cs -Encoding UTF8
+
+# Aplicación - Abstracciones y servicios
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Application\Abstractions | Out-Null
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Application\Services | Out-Null
+@'
+using IntegracionNiubizDemo.Domain.Entities;
+
+namespace IntegracionNiubizDemo.Application.Abstractions;
+
+public interface IProductRepository
+{
+    Task<List<Product>> GetAllAsync(CancellationToken ct = default);
+    Task AddRangeAsync(IEnumerable<Product> products, CancellationToken ct = default);
+    Task<bool> AnyAsync(CancellationToken ct = default);
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Application\Abstractions\IProductRepository.cs -Encoding UTF8
+
+@'
+using IntegracionNiubizDemo.Domain.Entities;
+
+namespace IntegracionNiubizDemo.Application.Abstractions;
+
+public interface IProductService
+{
+    Task<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default);
+    Task EnsureSeedDataAsync(CancellationToken ct = default);
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Application\Abstractions\IProductService.cs -Encoding UTF8
+
+@'
+using IntegracionNiubizDemo.Application.Abstractions;
+using IntegracionNiubizDemo.Domain.Entities;
+
+namespace IntegracionNiubizDemo.Application.Services;
+
+public class ProductService : IProductService
+{
+    private readonly IProductRepository _repo;
+    public ProductService(IProductRepository repo) => _repo = repo;
+
+    public async Task<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default)
+        => await _repo.GetAllAsync(ct);
+
+    public async Task EnsureSeedDataAsync(CancellationToken ct = default)
+    {
+        if (await _repo.AnyAsync(ct)) return;
+
+        var seed = new[]
+        {
+            new Product { Id = Guid.NewGuid(), Name = "Laptop",  Price = 3999.99m },
+            new Product { Id = Guid.NewGuid(), Name = "Mouse",   Price = 79.90m },
+            new Product { Id = Guid.NewGuid(), Name = "Teclado", Price = 149.00m }
+        };
+
+        await _repo.AddRangeAsync(seed, ct);
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Application\Services\ProductService.cs -Encoding UTF8
+
+@'
+using Microsoft.Extensions.DependencyInjection;
+using IntegracionNiubizDemo.Application.Abstractions;
+using IntegracionNiubizDemo.Application.Services;
+
+namespace IntegracionNiubizDemo.Application;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddApplication(this IServiceCollection services)
+    {
+        services.AddScoped<IProductService, ProductService>();
+        return services;
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Application\DependencyInjection.cs -Encoding UTF8
+
+# Persistencia - DbContext y repositorio
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Persistence\Data | Out-Null
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Persistence\Repositories | Out-Null
+@'
+using Microsoft.EntityFrameworkCore;
+using IntegracionNiubizDemo.Domain.Entities;
+
+namespace IntegracionNiubizDemo.Persistence.Data;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Product> Products => Set<Product>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Product>(b =>
+        {
+            b.HasKey(p => p.Id);
+            b.Property(p => p.Name).IsRequired().HasMaxLength(200);
+            b.Property(p => p.Price).HasPrecision(18, 2);
+        });
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Persistence\Data\AppDbContext.cs -Encoding UTF8
+
+@'
+using Microsoft.EntityFrameworkCore;
+using IntegracionNiubizDemo.Application.Abstractions;
+using IntegracionNiubizDemo.Domain.Entities;
+using IntegracionNiubizDemo.Persistence.Data;
+
+namespace IntegracionNiubizDemo.Persistence.Repositories;
+
+public class ProductRepository : IProductRepository
+{
+    private readonly AppDbContext _db;
+    public ProductRepository(AppDbContext db) => _db = db;
+
+    public Task<bool> AnyAsync(CancellationToken ct = default)
+        => _db.Products.AnyAsync(ct);
+
+    public Task<List<Product>> GetAllAsync(CancellationToken ct = default)
+        => _db.Products.AsNoTracking().ToListAsync(ct);
+
+    public async Task AddRangeAsync(IEnumerable<Product> products, CancellationToken ct = default)
+    {
+        await _db.Products.AddRangeAsync(products, ct);
+        await _db.SaveChangesAsync(ct);
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Persistence\Repositories\ProductRepository.cs -Encoding UTF8
+
+# Infraestructura - DI
+@'
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using IntegracionNiubizDemo.Application.Abstractions;
+using IntegracionNiubizDemo.Persistence.Data;
+using IntegracionNiubizDemo.Persistence.Repositories;
+
+namespace IntegracionNiubizDemo.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+    {
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseInMemoryDatabase("IntegracionNiubizDemoDb"));
+
+        services.AddScoped<IProductRepository, ProductRepository>();
+
+        return services;
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Infrastructure\DependencyInjection.cs -Encoding UTF8
+
+# Presentación (Web) - Program, Controller y Vista
+@'
+using IntegracionNiubizDemo.Application;
+using IntegracionNiubizDemo.Application.Abstractions;
+using IntegracionNiubizDemo.Infrastructure;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllersWithViews();
+
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Products}/{action=Index}/{id?}");
+
+// Seed inicial a través de la capa de aplicación
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<IProductService>();
+    seeder.EnsureSeedDataAsync().GetAwaiter().GetResult();
+}
+
+app.Run();
+'@ | Set-Content .\IntegracionNiubizDemo.Web\Program.cs -Encoding UTF8
+
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Web\Controllers | Out-Null
+@'
+using Microsoft.AspNetCore.Mvc;
+using IntegracionNiubizDemo.Application.Abstractions;
+
+namespace IntegracionNiubizDemo.Web.Controllers;
+
+public class ProductsController : Controller
+{
+    private readonly IProductService _service;
+    public ProductsController(IProductService service) => _service = service;
+
+    public async Task<IActionResult> Index()
+    {
+        var products = await _service.GetProductsAsync();
+        return View(products);
+    }
+}
+'@ | Set-Content .\IntegracionNiubizDemo.Web\Controllers\ProductsController.cs -Encoding UTF8
+
+New-Item -ItemType Directory -Force .\IntegracionNiubizDemo.Web\Views\Products | Out-Null
+@'
+@model IReadOnlyList<IntegracionNiubizDemo.Domain.Entities.Product>
+
+@{
+    ViewData["Title"] = "Productos";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th class="text-end">Precio</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var p in Model)
+    {
+        <tr>
+            <td>@p.Name</td>
+            <td class="text-end">@p.Price.ToString("C")</td>
+        </tr>
+    }
+    </tbody>
+</table>
+'@ | Set-Content .\IntegracionNiubizDemo.Web\Views\Products\Index.cshtml -Encoding UTF8
+
+# 6) Restaurar, compilar y ejecutar
+dotnet restore .\IntegracionNiubizDemo.sln
+dotnet build .\IntegracionNiubizDemo.sln -c Debug
+dotnet run --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+
+
+--------------
+
+
+Set-Location F:\Repos\IntegracionNiubizDemo
+dotnet user-secrets init --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+dotnet user-secrets set "Niubiz:MerchantId" "522591303" --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+dotnet user-secrets set "Niubiz:Username" "integraciones.visanet@necomplus.com" --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+dotnet user-secrets set "Niubiz:Password" "d5e7nk$M" --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+dotnet user-secrets list --project .\IntegracionNiubizDemo.Web\IntegracionNiubizDemo.Web.csproj
+
+$base = "https://apitestenv.vnforapps.com"
+$pair = 'integraciones.visanet@necomplus.com:d5e7nk$M'
+$enc = [Text.Encoding]::GetEncoding("ISO-8859-1")
+$basic = [Convert]::ToBase64String($enc.GetBytes($pair))
+
+Invoke-RestMethod -Method Post -Uri "$base/api.security/v1/security" `
+  -Headers @{ Authorization = "Basic $basic"; Accept = "application/json" } `
+  -ContentType "application/json" -Body "{}"
