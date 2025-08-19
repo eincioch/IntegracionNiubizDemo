@@ -24,7 +24,7 @@
 | Componente | Especificación |
 |------------|----------------|
 | **Sistema Operativo** | Windows Server 2019+, Ubuntu 20.04+, CentOS 8+ |
-| **Runtime** | .NET 8.0 Runtime |
+| **Runtime** | .NET 9.0 Runtime |
 | **Memoria RAM** | 2 GB mínimo, 4 GB recomendado |
 | **Espacio en Disco** | 1 GB disponible |
 | **Base de Datos** | SQLite (incluida) o SQL Server |
@@ -184,10 +184,10 @@ curl -k https://localhost:5001/Products
 
 ### Requisitos Previos
 
-1. **Instalar .NET 8.0 Hosting Bundle**:
+1. **Instalar .NET 9.0 Hosting Bundle**:
 ```powershell
-# Descargar desde: https://dotnet.microsoft.com/download/dotnet/8.0
-# Ejecutar: dotnet-hosting-8.0.x-win.exe
+# Descargar desde: https://dotnet.microsoft.com/download/dotnet/9.0
+# Ejecutar: dotnet-hosting-9.0.x-win.exe
 ```
 
 2. **Habilitar IIS**:
@@ -261,7 +261,7 @@ New-IISSiteBinding -Name "IntegracionNiubizDemo" -Protocol https -Port 443 -Cert
 
 ### Ubuntu 20.04 / 22.04
 
-1. **Instalar .NET 8.0**:
+1. **Instalar .NET 9.0**:
 ```bash
 # Agregar repositorio de Microsoft
 wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
@@ -271,7 +271,7 @@ rm packages-microsoft-prod.deb
 # Instalar .NET
 sudo apt-get update
 sudo apt-get install -y apt-transport-https
-sudo apt-get install -y dotnet-runtime-8.0 aspnetcore-runtime-8.0
+sudo apt-get install -y dotnet-runtime-9.0 aspnetcore-runtime-9.0
 ```
 
 2. **Crear usuario del servicio**:
@@ -403,12 +403,12 @@ sudo systemctl reload nginx
 
 ```dockerfile
 # IntegracionNiubizDemo/Dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY ["IntegracionNiubizDemo.Web/IntegracionNiubizDemo.Web.csproj", "IntegracionNiubizDemo.Web/"]
 COPY ["IntegracionNiubizDemo.Application/IntegracionNiubizDemo.Application.csproj", "IntegracionNiubizDemo.Application/"]
@@ -537,7 +537,7 @@ az webapp create \
   --resource-group rg-integracion-niubiz \
   --plan plan-integracion-niubiz \
   --name integracion-niubiz-app \
-  --runtime "DOTNETCORE:8.0"
+  --runtime "DOTNETCORE:9.0"
 ```
 
 2. **Configurar variables de entorno**:

@@ -22,7 +22,7 @@
 
 ## Descripción General
 
-**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 8.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
+**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 9.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
 
 ### Características Principales
 
@@ -35,8 +35,8 @@
 
 ### Tecnologías Utilizadas
 
-- **Framework**: .NET 8.0 (ASP.NET Core MVC)
-- **Base de Datos**: SQLite con Entity Framework Core 8.0
+- **Framework**: .NET 9.0 (ASP.NET Core MVC)
+- **Base de Datos**: SQLite con Entity Framework Core 9.0
 - **Frontend**: HTML5, CSS3, JavaScript (Bootstrap 5)
 - **Patrones de Diseño**: Clean Architecture, Repository Pattern, Dependency Injection
 - **API Externa**: Niubiz Payment Gateway API
@@ -143,18 +143,18 @@ graph TD
 ### Dependencias de Paquetes NuGet
 
 **Capa Application:**
-- `Microsoft.Extensions.DependencyInjection` (8.0.1)
-- `Microsoft.Extensions.Configuration.Abstractions` (8.0.0)
+- `Microsoft.Extensions.DependencyInjection` (9.0.0)
+- `Microsoft.Extensions.Configuration.Abstractions` (9.0.0)
 
 **Capa Infrastructure:**
-- `Microsoft.EntityFrameworkCore` (8.0.11)
-- `Microsoft.EntityFrameworkCore.Sqlite` (8.0.11)
-- `Microsoft.Extensions.Http` (8.0.1)
-- `Microsoft.Extensions.Options` (8.0.2)
+- `Microsoft.EntityFrameworkCore` (9.0.0)
+- `Microsoft.EntityFrameworkCore.Sqlite` (9.0.0)
+- `Microsoft.Extensions.Http` (9.0.0)
+- `Microsoft.Extensions.Options` (9.0.0)
 
 **Capa Persistence:**
-- `Microsoft.EntityFrameworkCore` (8.0.11)
-- `Microsoft.EntityFrameworkCore.Design` (8.0.11)
+- `Microsoft.EntityFrameworkCore` (9.0.0)
+- `Microsoft.EntityFrameworkCore.Design` (9.0.0)
 
 ---
 
@@ -409,7 +409,7 @@ dotnet user-secrets set "Niubiz:Password" "su_password" --project IntegracionNiu
 
 ### Requisitos Previos
 
-- **.NET 8.0 SDK** o superior
+- **.NET 9.0 SDK** o superior
 - **Git** para clonar el repositorio
 - **IDE** recomendado: Visual Studio 2022 o Visual Studio Code
 - **Navegador web** moderno
@@ -1247,7 +1247,7 @@ Este proyecto está bajo la licencia MIT. Ver el archivo `LICENSE` para más det
 
 #### v1.0.0 (2024-01-XX)
 - Implementación inicial de integración con Niubiz
-- Clean Architecture con .NET 8.0
+- Clean Architecture con .NET 9.0
 - Funcionalidades básicas de e-commerce
 - Documentación completa
 
