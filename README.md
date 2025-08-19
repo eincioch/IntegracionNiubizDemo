@@ -143,18 +143,21 @@ graph TD
 ### Dependencias de Paquetes NuGet
 
 **Capa Application:**
-- `Microsoft.Extensions.DependencyInjection` (8.0.1)
-- `Microsoft.Extensions.Configuration.Abstractions` (8.0.0)
+- `Microsoft.Extensions.DependencyInjection` (9.0.8)
+- `Microsoft.Extensions.Configuration.Abstractions` (9.0.8)
 
 **Capa Infrastructure:**
-- `Microsoft.EntityFrameworkCore` (8.0.11)
-- `Microsoft.EntityFrameworkCore.Sqlite` (8.0.11)
-- `Microsoft.Extensions.Http` (8.0.1)
-- `Microsoft.Extensions.Options` (8.0.2)
+- `Microsoft.EntityFrameworkCore` (9.0.8)
+- `Microsoft.EntityFrameworkCore.Sqlite` (9.0.8)
+- `Microsoft.EntityFrameworkCore.InMemory` (9.0.8)
+- `Microsoft.Extensions.Http` (9.0.8)
+- `Microsoft.Extensions.Logging.Abstractions` (9.0.8)
+- `Microsoft.Extensions.Options` (9.0.8)
+- `Microsoft.Extensions.Configuration.Abstractions` (9.0.8)
 
 **Capa Persistence:**
-- `Microsoft.EntityFrameworkCore` (8.0.11)
-- `Microsoft.EntityFrameworkCore.Design` (8.0.11)
+- `Microsoft.EntityFrameworkCore` (9.0.8)
+- `Microsoft.EntityFrameworkCore.Design` (9.0.8)
 
 ---
 
