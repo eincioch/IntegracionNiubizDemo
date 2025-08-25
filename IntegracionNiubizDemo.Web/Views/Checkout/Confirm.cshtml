@@ -3,9 +3,11 @@
 
 @{
     ViewData["Title"] = "Resultado del pago";
-    var estado = Model.Success ? "Pago aprobado" : "Pago rechazado";
+    var estadoOk = Model.Success;
+    var estado = estadoOk ? "Pago aprobado" : "Pago rechazado";
 
     string? actionCode = null, actionDescription = null, transactionDate = null, brand = null, eci = null, eciDescription = null, traceNumber = null;
+    string? amountTxt = null, currencyTxt = null;
     string pretty = Model.RawJson ?? "{}";
 
     try
@@ -18,6 +20,8 @@
             if (orderEl.TryGetProperty("actionCode", out var v)) actionCode = v.GetString();
             if (orderEl.TryGetProperty("transactionDate", out var v2)) transactionDate = v2.GetString();
             if (orderEl.TryGetProperty("traceNumber", out var v3)) traceNumber = v3.GetString();
+            if (orderEl.TryGetProperty("amount", out var v4)) amountTxt = v4.GetRawText();
+            if (orderEl.TryGetProperty("currency", out var v5)) currencyTxt = v5.GetString();
         }
 
         if (root.TryGetProperty("dataMap", out var dm))
@@ -39,45 +43,164 @@
     }
 }
 
-<h2>@estado</h2>
+<style>
+    :root {
+        --pg-success: #16a34a; /* verde */
+        --pg-danger: #dc2626;  /* rojo */
+        --pg-primary: #2563eb; /* azul */
+        --pg-muted: #6b7280;   /* gris */
+        --pg-bg: #0f172a;      /* slate-900 */
+        --pg-bg-soft: #111827; /* gray-900 */
+        --pg-surface: #0b1220; /* dark surface */
+    }
+    .pg-wrap { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+    .pg-header { position: relative; border-radius: 16px; padding: 24px; color: #e5e7eb; background:
+        radial-gradient(1200px 240px at 50% -50%, rgba(255,255,255,.06), rgba(255,255,255,0) 60%),
+        linear-gradient(135deg, #0b1220 0%, #111827 80%);
+        box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .pg-status { display:flex; align-items:center; gap:16px; }
+    .pg-status .pg-icon { width: 42px; height: 42px; border-radius: 50%; display:inline-flex; align-items:center; justify-content:center; 
+        background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+    .pg-status .pg-title { margin:0; font-size: 1.5rem; font-weight: 700; letter-spacing:.2px; }
+    .pg-sub { margin: 6px 0 0; color: #9ca3af; font-size: .95rem; }
+    .pg-badges { margin-left:auto; display:flex; gap:10px; }
+    .pg-badge { padding:.25rem .6rem; border-radius: 9999px; font-size: .8rem; color:#e5e7eb; background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.08); }
 
-<div class="card mb-3">
-  <div class="card-body">
-    <dl class="row mb-0">
-      <dt class="col-sm-3">Número de compra</dt>
-      <dd class="col-sm-9">@Model.PurchaseNumber</dd>
+    .pg-card { margin-top: 18px; background: #0b1220; color:#e5e7eb; border-radius: 14px; border:1px solid rgba(255,255,255,.08);
+        box-shadow: 0 10px 25px rgba(0,0,0,.35); }
+    .pg-card .pg-card-body { padding: 18px 20px; }
+    .pg-dl dt { color:#9ca3af; font-weight:600; }
+    .pg-dl dd { margin-bottom: .65rem; }
 
-      <dt class="col-sm-3">Código de autorización</dt>
-      <dd class="col-sm-9">@Model.AuthorizationCode ?? "-"</dd>
+    details.pg-json { margin-top:18px; background:#0b1220; border:1px solid rgba(255,255,255,.08); border-radius: 12px; overflow:hidden; }
+    details.pg-json > summary { list-style:none; padding:12px 16px; cursor:pointer; color:#e5e7eb; display:flex; align-items:center; gap:10px; }
+    details.pg-json > summary::-webkit-details-marker { display:none; }
+    details.pg-json[open] > summary { border-bottom:1px solid rgba(255,255,255,.06); }
+    .pg-json-icon { width:22px; height:22px; display:inline-block; background: rgba(255,255,255,.08); border-radius:6px; }
+    pre.pg-pre { margin:0; padding:14px 16px; color:#e5e7eb; background:#0a0f1a; font-size:.9rem; border-radius:0 0 12px 12px; }
 
-      <dt class="col-sm-3">Tarjeta</dt>
-      <dd class="col-sm-9">@Model.MaskedCard ?? "-"</dd>
+    .pg-actions { display:flex; gap:10px; margin-top:14px; }
+    .pg-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; border:1px solid transparent; color:#e5e7eb; text-decoration:none; }
+    .pg-btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); border-color: rgba(255,255,255,.08); }
+    .pg-btn-secondary { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.1); }
+    .pg-meta { margin-left:auto; color:#9ca3af; font-size:.9rem; }
 
-      <dt class="col-sm-3">Action code</dt>
-      <dd class="col-sm-9">@actionCode ?? "-"</dd>
+    .ok { color: var(--pg-success); }
+    .fail { color: var(--pg-danger); }
+</style>
 
-      <dt class="col-sm-3">Descripción</dt>
-      <dd class="col-sm-9">@actionDescription ?? "-"</dd>
+@if (Model.Success)
+{
+    <div id="confetti-container" aria-hidden="true"></div>
+    <style>
+        #confetti-container { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1050; }
+        .confetti-piece { position: absolute; top: -10vh; width: 8px; height: 14px; opacity: .95; border-radius: 2px; transform: translateY(-10vh) rotate(0deg);
+            animation-name: confetti-fall, confetti-sway; animation-timing-function: linear, ease-in-out; animation-iteration-count: 1, infinite; will-change: transform; }
+        @@keyframes confetti-fall { to { transform: translateY(110vh) rotate(540deg); } }
+        @@keyframes confetti-sway { 0% { margin-left: -20px; } 100% { margin-left: 20px; } }
+        #confetti-glow { position: fixed; left:0; right:0; top:0; height: 25vh; pointer-events:none; z-index:1049; background: radial-gradient(ellipse at top, rgba(255,255,255,.12), rgba(255,255,255,0) 70%); filter: blur(1px); opacity:.85; animation: glowPulse 2.8s ease-in-out 3; }
+        @@keyframes glowPulse { 0%,100% { opacity:.6 } 50% { opacity:1 } }
+    </style>
+    <script>
+        (function () {
+            const container = document.getElementById('confetti-container');
+            if (!container) return;
+            const glow = document.createElement('div'); glow.id = 'confetti-glow'; document.body.appendChild(glow);
+            const colors = ['#2ecc71','#3498db','#f1c40f','#e67e22','#e74c3c','#9b59b6','#1abc9c','#16a085'];
+            const total = Math.min(220, Math.max(120, Math.floor(window.innerWidth / 6)));
+            const durationMin = 2500, durationMax = 5200; function rand(min, max) { return Math.random() * (max - min) + min; }
+            for (let i = 0; i < total; i++) {
+                const piece = document.createElement('div'); piece.className = 'confetti-piece';
+                piece.style.left = rand(0, 100) + 'vw'; const size = rand(6, 12); const height = size * rand(1.2, 1.8);
+                piece.style.width = size + 'px'; piece.style.height = height + 'px'; piece.style.background = colors[i % colors.length];
+                const delay = rand(0, 1200); const duration = rand(durationMin, durationMax);
+                piece.style.animationDuration = duration + 'ms, ' + (rand(1800, 2800)) + 'ms'; piece.style.animationDelay = delay + 'ms, 0ms';
+                piece.style.transform = 'translateY(-10vh) rotate(' + rand(-90, 90) + 'deg)'; piece.style.boxShadow = '0 0 1px rgba(0,0,0,.15)';
+                container.appendChild(piece); setTimeout(() => { piece.remove(); }, delay + duration + 200);
+            }
+            const totalTime = 6000; setTimeout(() => { glow.remove(); }, totalTime); setTimeout(() => { container.remove(); }, totalTime + 400);
+        })();
+    </script>
+}
 
-      <dt class="col-sm-3">Fecha transacción</dt>
-      <dd class="col-sm-9">@transactionDate ?? "-"</dd>
+<div class="pg-wrap">
+    <div class="pg-header">
+        <div class="pg-status">
+            <span class="pg-icon" aria-hidden="true">
+                @if (estadoOk)
+                {
+                    <svg viewBox="0 0 24 24" width="24" height="24" class="ok" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" width="24" height="24" class="fail" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                }
+            </span>
+            <div>
+                <h1 class="pg-title">@estado</h1>
+                <p class="pg-sub">Compra @Model.PurchaseNumber @if(!string.IsNullOrWhiteSpace(amountTxt)){<text>- Monto: @amountTxt @currencyTxt</text>} </p>
+            </div>
+            <div class="pg-badges">
+                @if (!string.IsNullOrWhiteSpace(actionCode)) { <span class="pg-badge">AC: @actionCode</span> }
+                @if (!string.IsNullOrWhiteSpace(brand)) { <span class="pg-badge">@brand</span> }
+            </div>
+        </div>
+    </div>
 
-      <dt class="col-sm-3">Marca</dt>
-      <dd class="col-sm-9">@brand ?? "-"</dd>
+    <div class="pg-card">
+        <div class="pg-card-body">
+            <dl class="row mb-0 pg-dl">
+                <dt class="col-sm-4 col-md-3">Número de compra</dt>
+                <dd class="col-sm-8 col-md-9">@Model.PurchaseNumber</dd>
 
-      <dt class="col-sm-3">ECI</dt>
-      <dd class="col-sm-9">@eci ?? "-"</dd>
+                <dt class="col-sm-4 col-md-3">Código de autorización</dt>
+                <dd class="col-sm-8 col-md-9">@Model.AuthorizationCode ?? "-"</dd>
 
-      <dt class="col-sm-3">ECI descripción</dt>
-      <dd class="col-sm-9">@eciDescription ?? "-"</dd>
+                <dt class="col-sm-4 col-md-3">Tarjeta</dt>
+                <dd class="col-sm-8 col-md-9">@Model.MaskedCard ?? "-"</dd>
 
-      <dt class="col-sm-3">Trace</dt>
-      <dd class="col-sm-9">@traceNumber ?? "-"</dd>
-    </dl>
-  </div>
+                <dt class="col-sm-4 col-md-3">Action code</dt>
+                <dd class="col-sm-8 col-md-9">@actionCode ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">Descripción</dt>
+                <dd class="col-sm-8 col-md-9">@actionDescription ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">Fecha transacción</dt>
+                <dd class="col-sm-8 col-md-9">@transactionDate ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">Marca</dt>
+                <dd class="col-sm-8 col-md-9">@brand ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">ECI</dt>
+                <dd class="col-sm-8 col-md-9">@eci ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">ECI descripción</dt>
+                <dd class="col-sm-8 col-md-9">@eciDescription ?? "-"</dd>
+
+                <dt class="col-sm-4 col-md-3">Trace</dt>
+                <dd class="col-sm-8 col-md-9">@traceNumber ?? "-"</dd>
+            </dl>
+        </div>
+    </div>
+
+    <details class="pg-json">
+        <summary>
+            <span class="pg-json-icon" aria-hidden="true"></span>
+            Ver trama de respuesta (JSON)
+            <span class="pg-meta">@DateTime.Now.ToString("g")</span>
+        </summary>
+        <pre class="pg-pre">@pretty</pre>
+    </details>
+
+    <div class="pg-actions">
+        <a class="pg-btn pg-btn-primary" href="@Url.Action("Index","Products")" title="Volver al catálogo">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Volver
+        </a>
+        <button type="button" class="pg-btn pg-btn-secondary" onclick="window.print()" title="Imprimir comprobante">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18h12v4H6z"/><rect x="6" y="14" width="12" height="4" rx="1"/><path d="M6 10h12a4 4 0 014 4v0"/></svg>
+            Imprimir
+        </button>
+    </div>
 </div>
-
-<h4>Trama de respuesta</h4>
-<pre style="white-space: pre-wrap; word-wrap: break-word;">@pretty</pre>
-
-<a class="btn btn-secondary mt-2" href="@Url.Action("Index","Products")">Volver</a>

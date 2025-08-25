@@ -13,15 +13,20 @@ public class ProductService : IProductService
 
     public async Task EnsureSeedDataAsync(CancellationToken ct = default)
     {
-        if (await _repo.AnyAsync(ct)) return;
+        // Elimina todos los productos antes de seedear (solo para desarrollo)
+        var all = await _repo.GetAllAsync(ct);
+        foreach (var prod in all)
+            await _repo.DeleteAsync(prod.Id, ct);
 
         var seed = new[]
         {
             new Product { Id = Guid.NewGuid(), Name = "Laptop",  Price = 3999.99m },
             new Product { Id = Guid.NewGuid(), Name = "Mouse",   Price = 79.90m },
-            new Product { Id = Guid.NewGuid(), Name = "Teclado", Price = 149.00m }
-        };
+            new Product { Id = Guid.NewGuid(), Name = "Teclado", Price = 149.00m },
+            new Product { Id = Guid.NewGuid(), Name = "Lápiz", Price = 1.00m }
+           };
 
-        await _repo.AddRangeAsync(seed, ct);
-    }
+           await _repo.AddRangeAsync(seed, ct);
+       }
 }
+

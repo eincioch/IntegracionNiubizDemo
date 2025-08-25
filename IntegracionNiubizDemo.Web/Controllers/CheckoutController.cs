@@ -57,6 +57,7 @@ public class CheckoutController : Controller
             Response.Cookies.Delete("LastPurchaseNumber");
 
         // Consolidar token
+        
         var tok = transactionToken ?? tokenId ?? token;
         if (string.IsNullOrWhiteSpace(tok))
         {

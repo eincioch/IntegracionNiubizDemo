@@ -24,4 +24,14 @@ public class ProductRepository : IProductRepository
         await _db.Products.AddRangeAsync(products, ct);
         await _db.SaveChangesAsync(ct);
     }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        var prod = await _db.Products.FindAsync(new object[] { id }, ct);
+        if (prod != null)
+        {
+            _db.Products.Remove(prod);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
 }

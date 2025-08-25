@@ -8,4 +8,5 @@ public interface IProductRepository
     Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default); // <-- nuevo
     Task AddRangeAsync(IEnumerable<Product> products, CancellationToken ct = default);
     Task<bool> AnyAsync(CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default); // <-- agregado
 }

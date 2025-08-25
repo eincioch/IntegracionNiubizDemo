@@ -35,4 +35,10 @@ app.MapControllerRoute(
     pattern: "{controller=Products}/{action=Index}/{id?}");
 
 // Seed, migraciones, etc.
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<IProductService>();
+    seeder.EnsureSeedDataAsync().GetAwaiter().GetResult();
+}
+
 app.Run();

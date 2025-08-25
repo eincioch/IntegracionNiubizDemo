@@ -22,7 +22,7 @@
 
 ## Descripción General
 
-**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 8.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
+**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 9.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
 
 ### Características Principales
 
@@ -35,8 +35,8 @@
 
 ### Tecnologías Utilizadas
 
-- **Framework**: .NET 8.0 (ASP.NET Core MVC)
-- **Base de Datos**: SQLite con Entity Framework Core 8.0
+- **Framework**: .NET 9.0 (ASP.NET Core MVC)
+- **Base de Datos**: SQLite con Entity Framework Core 9.0
 - **Frontend**: HTML5, CSS3, JavaScript (Bootstrap 5)
 - **Patrones de Diseño**: Clean Architecture, Repository Pattern, Dependency Injection
 - **API Externa**: Niubiz Payment Gateway API
