@@ -37,6 +37,9 @@ app.MapControllerRoute(
 // Seed, migraciones, etc.
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await SchemaUpgrader.EnsureOrderAddressColumnsAsync(db);
+
     var seeder = scope.ServiceProvider.GetRequiredService<IProductService>();
     seeder.EnsureSeedDataAsync().GetAwaiter().GetResult();
 }

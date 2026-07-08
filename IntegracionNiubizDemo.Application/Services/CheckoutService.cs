@@ -34,8 +34,10 @@ public class CheckoutService : ICheckoutService
         _staticJsUrl = config[$"Niubiz:StaticContent:{env}"] ?? throw new InvalidOperationException("Static JS URL vacío");
     }
 
-    public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CancellationToken ct = default)
+    public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CustomerAddressInput address, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(address);
+
         var productList = await _products.GetAllAsync(ct);
         var product = await _products.GetByIdAsync(productId, ct);
         if (product is null) throw new KeyNotFoundException("Producto no encontrado");
@@ -46,12 +48,18 @@ public class CheckoutService : ICheckoutService
             PurchaseNumber = purchaseNumber,
             Amount = decimal.Round(product.Price, 2, MidpointRounding.AwayFromZero),
             Currency = _currency,
-            CustomerEmail = customerEmail
+            CustomerEmail = customerEmail,
+            CustomerAddress = address.Address,
+            CustomerCity = address.City,
+            CustomerState = address.State,
+            CustomerCountry = address.Country,
+            CustomerPostalCode = address.PostalCode,
+            CustomerPhone = address.Phone
         };
         await _orders.AddAsync(order, ct);
 
         var secToken = await _niubiz.GetSecurityTokenAsync(ct);
-        var sessionKey = await _niubiz.CreateSessionAsync(secToken, order.Amount, order.PurchaseNumber, order.Currency, ct);
+        var sessionKey = await _niubiz.CreateSessionAsync(secToken, order.Amount, order.PurchaseNumber, order.Currency, address, ct);
 
         var txn = new PaymentTransaction
         {

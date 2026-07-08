@@ -31,6 +31,12 @@ public class AppDbContext : DbContext
             b.Property(o => o.CreatedAt);
             b.Property(o => o.Status).HasConversion<int>();
             b.Property(o => o.CustomerEmail).HasMaxLength(256);
+            b.Property(o => o.CustomerAddress).HasMaxLength(300);
+            b.Property(o => o.CustomerCity).HasMaxLength(100);
+            b.Property(o => o.CustomerState).HasMaxLength(50);
+            b.Property(o => o.CustomerCountry).HasMaxLength(2);
+            b.Property(o => o.CustomerPostalCode).HasMaxLength(20);
+            b.Property(o => o.CustomerPhone).HasMaxLength(20);
         });
 
         modelBuilder.Entity<PaymentTransaction>(ConfigurePaymentTransaction);

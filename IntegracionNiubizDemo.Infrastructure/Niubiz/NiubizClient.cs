@@ -2,7 +2,6 @@ using IntegracionNiubizDemo.Application.Abstractions;
 using IntegracionNiubizDemo.Application.Dtos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Diagnostics.SymbolStore;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
@@ -56,8 +55,10 @@ public class NiubizClient : INiubizGateway
         return token;
     }
 
-    public async Task<string> CreateSessionAsync(string securityToken, decimal amount, string purchaseNumber, string currency, CancellationToken ct = default)
+    public async Task<string> CreateSessionAsync(string securityToken, decimal amount, string purchaseNumber, string currency, CustomerAddressInput address, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(address);
+
         using var req = new HttpRequestMessage(HttpMethod.Post, _opt.SessionEndpoint.Replace("{merchantId}", _opt.MerchantId));
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         req.Headers.Add("Authorization", securityToken);
@@ -82,12 +83,23 @@ public class NiubizClient : INiubizGateway
                     MDD77 = 0
                 } 
             },
+            // Obligatorio ("SI") según el API de Sesión: alimenta el motor antifraude con datos reales
+            // del comprador, capturados en el formulario de checkout (manual, autocomplete o geolocalización).
+            dataMap = new
+            {
+                cardholderCity = address.City,
+                cardholderCountry = address.Country,
+                cardholderAddress = address.Address,
+                cardholderPostalCode = address.PostalCode,
+                cardholderState = address.State,
+                cardholderPhoneNumber = string.IsNullOrWhiteSpace(address.Phone) ? "000000000" : address.Phone
+            },
             purchaseNumber,
             recurrenceMaxAmount = amount.ToString("F2", CultureInfo.InvariantCulture)
         };
 
         var jsonBody = JsonSerializer.Serialize(body);
-        _logger.LogDebug("JSON enviado a Niubiz: {Json}", jsonBody);
+        _logger.LogDebug("JSON enviado a Niubiz (session): {Json}", jsonBody);
         req.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         var res = await _http.SendAsync(req, ct);
@@ -115,34 +127,36 @@ public class NiubizClient : INiubizGateway
         using var req = new HttpRequestMessage(HttpMethod.Post, _opt.AuthorizationEndpoint.Replace("{merchantId}", _opt.MerchantId));
         req.Headers.Add("Authorization", securityToken);
 
+        // IMPORTANTE: "cardHolder" y "recurrence" NO pertenecen al contrato del API de Autorización
+        // e-commerce (v3). Pertenecen a otras soluciones Niubiz (Pago con Cifrado / Recurrencia) y
+        // provocaban un rechazo por validación de esquema/antifraude antes de llegar a la red de la
+        // tarjeta (por eso ACTION_CODE 670 sin AUTHORIZATION_CODE/PROCESS_CODE/ADQUIRENTE en la respuesta).
         var body = new
         {
-            captureType = "manual",
-            cardHolder = new
-            {
-                documentNumber = "40904759",
-                documentType = "0" //0= DNI, 1= Canet de extranjería, 2= Pasaporte
-            },
             channel = "web",
+            captureType = "manual",
             countable = true,
             order = new
             {
-                amount = amount.ToString("F2", CultureInfo.InvariantCulture),
-                currency,
-                purchaseNumber,
                 tokenId = transactionToken,
-            },
-            recurrence = new {
+                purchaseNumber,
                 amount = amount.ToString("F2", CultureInfo.InvariantCulture),
-                beneficiaryId = "0",
-                frequency = "FALSE",
-                maxAmount = amount.ToString("F2", CultureInfo.InvariantCulture),
-                type = ""
+                currency
+            },
+            // Obligatorio ("SI") según el API de Autorización e-commerce. Estos campos describen
+            // la ubicación del COMERCIO (no del cliente) y se parametrizan vía NiubizOptions.
+            dataMap = new
+            {
+                urlAddress = _opt.MerchantUrl,
+                serviceLocationCityName = _opt.MerchantCityName,
+                serviceLocationCountrySubdivisionCode = _opt.MerchantCountrySubdivisionCode,
+                serviceLocationCountryCode = _opt.MerchantCountryCode,
+                serviceLocationPostalCode = _opt.MerchantPostalCode
             }
         };
 
         var jsonBody = JsonSerializer.Serialize(body);
-        _logger.LogDebug("JSON enviado a Niubiz: {Json}", jsonBody);
+        _logger.LogDebug("JSON enviado a Niubiz (authorization): {Json}", jsonBody);
         req.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
         var res = await _http.SendAsync(req, ct);
@@ -186,8 +200,10 @@ public class NiubizClient : INiubizGateway
                     approved = lac.GetString() == "000";
                 if (string.IsNullOrEmpty(authCode) && legacy.TryGetProperty("AUTHORIZATION_CODE", out var lau))
                     authCode = lau.GetString();
-                if (string.IsNullOrEmpty(maskedCard) && legacy.TryGetProperty("CARD", out var lcard) && lcard.ValueKind == JsonValueKind.Object && lcard.TryGetProperty("CARDNUMBER", out var cn))
-                    maskedCard = cn.GetString();
+                if (string.IsNullOrEmpty(maskedCard) && legacy.TryGetProperty("CARD", out var lcard))
+                    maskedCard = lcard.ValueKind == JsonValueKind.Object && lcard.TryGetProperty("CARDNUMBER", out var cn)
+                        ? cn.GetString()
+                        : lcard.GetString();
             }
 
             if (!approved)
@@ -195,9 +211,9 @@ public class NiubizClient : INiubizGateway
             if (string.IsNullOrEmpty(authCode) && root.TryGetProperty("authorizationCode", out var auFlat))
                 authCode = auFlat.GetString();
         }
-        catch
+        catch (JsonException ex)
         {
-            // logging ya realizado
+            _logger.LogWarning(ex, "No se pudo parsear la respuesta de autorización de Niubiz: {Body}", json);
         }
 
         return new AuthorizationResult(approved, authCode, maskedCard, json);

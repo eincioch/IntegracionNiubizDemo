@@ -5,5 +5,6 @@ namespace IntegracionNiubizDemo.Application.Abstractions;
 public interface IProductService
 {
     Task<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default);
+    Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task EnsureSeedDataAsync(CancellationToken ct = default);
 }

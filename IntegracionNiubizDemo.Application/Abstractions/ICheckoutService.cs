@@ -4,6 +4,6 @@ namespace IntegracionNiubizDemo.Application.Abstractions;
 
 public interface ICheckoutService
 {
-    Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CancellationToken ct = default);
+    Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CustomerAddressInput address, CancellationToken ct = default);
     Task<ConfirmResult> ConfirmAsync(string purchaseNumber, string transactionToken, CancellationToken ct = default);
 }

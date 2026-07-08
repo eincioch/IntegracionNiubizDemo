@@ -7,6 +7,7 @@ using IntegracionNiubizDemo.Persistence.Data;
 using IntegracionNiubizDemo.Application.Abstractions;
 using IntegracionNiubizDemo.Persistence.Repositories;
 using IntegracionNiubizDemo.Infrastructure.Niubiz;
+using IntegracionNiubizDemo.Infrastructure.Geocoding;
 
 namespace IntegracionNiubizDemo.Infrastructure;
 
@@ -22,6 +23,7 @@ public static class DependencyInjection
 
         services.AddPersistence(configuration);
         services.AddNiubiz(configuration);
+        services.AddGeocoding(configuration);
 
         return services;
     }
@@ -65,6 +67,11 @@ public static class DependencyInjection
                 opt.SecurityEndpoint      = configuration["Niubiz:Endpoints:Security"]      ?? opt.SecurityEndpoint;
                 opt.SessionEndpoint       = configuration["Niubiz:Endpoints:Session"]       ?? opt.SessionEndpoint;
                 opt.AuthorizationEndpoint = configuration["Niubiz:Endpoints:Authorization"] ?? opt.AuthorizationEndpoint;
+                opt.MerchantUrl           = configuration["Niubiz:MerchantUrl"]             ?? opt.MerchantUrl;
+                opt.MerchantCityName                 = configuration["Niubiz:MerchantCityName"]                 ?? opt.MerchantCityName;
+                opt.MerchantCountrySubdivisionCode    = configuration["Niubiz:MerchantCountrySubdivisionCode"]    ?? opt.MerchantCountrySubdivisionCode;
+                opt.MerchantCountryCode               = configuration["Niubiz:MerchantCountryCode"]               ?? opt.MerchantCountryCode;
+                opt.MerchantPostalCode                = configuration["Niubiz:MerchantPostalCode"]                ?? opt.MerchantPostalCode;
             })
             .Validate(o => !string.IsNullOrWhiteSpace(o.MerchantId) && !o.MerchantId.StartsWith("TU_", StringComparison.OrdinalIgnoreCase),
                 "Niubiz:MerchantId no configurado")
@@ -82,6 +89,24 @@ public static class DependencyInjection
             http.Timeout = TimeSpan.FromSeconds(30);
             http.DefaultRequestHeaders.Accept.Clear();
             http.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+        });
+
+        return services;
+    }
+
+    private static IServiceCollection AddGeocoding(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<GoogleMapsOptions>()
+            .Configure(opt =>
+            {
+                opt.ApiKey = configuration["GoogleMaps:ApiKey"] ?? string.Empty;
+                opt.GeocodeBaseUrl = configuration["GoogleMaps:GeocodeBaseUrl"] ?? opt.GeocodeBaseUrl;
+                opt.Language = configuration["GoogleMaps:Language"] ?? opt.Language;
+            });
+
+        services.AddHttpClient<IGeocodingService, GoogleGeocodingService>(http =>
+        {
+            http.Timeout = TimeSpan.FromSeconds(15);
         });
 
         return services;

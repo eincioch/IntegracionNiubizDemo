@@ -12,4 +12,16 @@ public class NiubizOptions
     public string SessionEndpoint { get; set; } = "/api.ecommerce/v2/ecommerce/token/session/{merchantId}";
     public string AuthorizationEndpoint { get; set; } = "/api.authorization/v3/authorization/ecommerce/{merchantId}";
     public string StaticJsUrl { get; set; } = default!;
+
+    /// <summary>
+    /// URL del comercio requerida por Niubiz en dataMap.urlAddress del API de Autorizaci�n e-commerce.
+    /// </summary>
+    public string MerchantUrl { get; set; } = "http://localhost:5110";
+
+    // Ubicación del comercio (no del cliente), requerida por Niubiz en dataMap.serviceLocation*
+    // del API de Autorización e-commerce.
+    public string MerchantCityName { get; set; } = "Lima";
+    public string MerchantCountrySubdivisionCode { get; set; } = "LIM";
+    public string MerchantCountryCode { get; set; } = "PE";
+    public string MerchantPostalCode { get; set; } = "15001";
 }

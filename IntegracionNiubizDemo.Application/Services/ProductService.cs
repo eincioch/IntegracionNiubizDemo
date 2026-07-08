@@ -11,6 +11,9 @@ public class ProductService : IProductService
     public async Task<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default)
         => await _repo.GetAllAsync(ct);
 
+    public async Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => await _repo.GetByIdAsync(id, ct);
+
     public async Task EnsureSeedDataAsync(CancellationToken ct = default)
     {
         // Elimina todos los productos antes de seedear (solo para desarrollo)
