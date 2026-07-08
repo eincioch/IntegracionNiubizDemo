@@ -22,12 +22,13 @@
 
 ## Descripción General
 
-**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 9.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
+**IntegracionNiubizDemo** es una aplicación web desarrollada en **.NET 8.0** que demuestra la integración completa con la **API de pagos de Niubiz (VisaNet)**. La aplicación implementa un **sistema de e-commerce** con funcionalidades de catálogo de productos y procesamiento de pagos seguro.
 
 ### Características Principales
 
 - ✅ **Arquitectura Clean Architecture** con separación clara de responsabilidades
-- ✅ **Integración completa con Niubiz API** para procesamiento de pagos
+- ✅ **Integración completa con Niubiz API** para procesamiento de pagos (security token, sesión y autorización e-commerce v3)
+- ✅ **Captura de dirección/ubicación del comprador** (formulario manual o geolocalización del navegador + reverse geocoding) para alimentar el `dataMap` antifraude de Niubiz
 - ✅ **Interfaz web responsiva** para gestión de productos y checkout
 - ✅ **Base de datos SQLite** para persistencia de datos
 - ✅ **Manejo de transacciones** con seguimiento completo del estado
@@ -35,11 +36,11 @@
 
 ### Tecnologías Utilizadas
 
-- **Framework**: .NET 9.0 (ASP.NET Core MVC)
-- **Base de Datos**: SQLite con Entity Framework Core 9.0
-- **Frontend**: HTML5, CSS3, JavaScript (Bootstrap 5)
+- **Framework**: .NET 8.0 (ASP.NET Core MVC)
+- **Base de Datos**: SQLite con Entity Framework Core 9.0.8
+- **Frontend**: HTML5, CSS3, JavaScript (Bootstrap 5), jQuery Validation Unobtrusive
 - **Patrones de Diseño**: Clean Architecture, Repository Pattern, Dependency Injection
-- **API Externa**: Niubiz Payment Gateway API
+- **APIs Externas**: Niubiz Payment Gateway API, Google Maps Geocoding API (reverse geocoding opcional)
 
 ---
 
@@ -52,7 +53,7 @@ IntegracionNiubizDemo/
 ├── 📁 IntegracionNiubizDemo.Domain/          # Capa de Dominio
 │   └── Entities/                             # Entidades del negocio
 │       ├── Product.cs                        # Producto
-│       ├── Order.cs                          # Orden de compra
+│       ├── Order.cs                          # Orden de compra (incluye datos de dirección del cliente)
 │       └── PaymentTransaction.cs             # Transacción de pago
 │
 ├── 📁 IntegracionNiubizDemo.Application/     # Capa de Aplicación
@@ -60,6 +61,7 @@ IntegracionNiubizDemo/
 │   │   ├── IProductService.cs                # Servicio de productos
 │   │   ├── ICheckoutService.cs               # Servicio de checkout
 │   │   ├── INiubizGateway.cs                 # Gateway de Niubiz
+│   │   ├── IGeocodingService.cs              # Abstracción de reverse geocoding
 │   │   ├── IProductRepository.cs             # Repositorio de productos
 │   │   ├── IOrderRepository.cs               # Repositorio de órdenes
 │   │   └── IPaymentRepository.cs             # Repositorio de pagos
@@ -67,12 +69,13 @@ IntegracionNiubizDemo/
 │   │   ├── ProductService.cs                 # Lógica de productos
 │   │   └── CheckoutService.cs                # Lógica de checkout
 │   ├── Dtos/                                 # Objetos de transferencia
-│   │   └── CheckoutDtos.cs                   # DTOs de checkout
+│   │   └── CheckoutDtos.cs                   # DTOs de checkout, dirección y geocoding
 │   └── DependencyInjection.cs               # Configuración DI
 │
 ├── 📁 IntegracionNiubizDemo.Persistence/    # Capa de Persistencia
 │   ├── Data/
-│   │   └── AppDbContext.cs                   # Contexto de EF Core
+│   │   ├── AppDbContext.cs                   # Contexto de EF Core
+│   │   └── SchemaUpgrader.cs                 # Upgrader idempotente de esquema SQLite (sin migraciones EF)
 │   └── Repositories/                         # Implementación de repositorios
 │       ├── ProductRepository.cs              # Repositorio de productos
 │       ├── OrderRepository.cs                # Repositorio de órdenes
@@ -81,21 +84,27 @@ IntegracionNiubizDemo/
 ├── 📁 IntegracionNiubizDemo.Infrastructure/ # Capa de Infraestructura
 │   ├── Niubiz/                              # Integración con Niubiz
 │   │   ├── NiubizClient.cs                  # Cliente HTTP para Niubiz
-│   │   └── NiubizOptions.cs                 # Configuración de Niubiz
+│   │   └── NiubizOptions.cs                 # Configuración de Niubiz (incluye ubicación del comercio)
+│   ├── Geocoding/                           # Reverse geocoding (Google Maps)
+│   │   ├── GoogleGeocodingService.cs        # Implementación de IGeocodingService
+│   │   └── GoogleMapsOptions.cs             # Configuración de Google Maps Geocoding API
 │   └── DependencyInjection.cs              # Configuración DI
 │
 └── 📁 IntegracionNiubizDemo.Web/            # Capa de Presentación
     ├── Controllers/                          # Controladores MVC
     │   ├── ProductsController.cs             # Gestión de productos
-    │   ├── CheckoutController.cs             # Proceso de checkout
+    │   ├── CheckoutController.cs             # Proceso de checkout (formulario, reverse-geocode, confirm)
     │   └── HomeController.cs                 # Página principal
+    ├── Models/                               # ViewModels y DTOs web
+    │   ├── CheckoutPayViewModel.cs           # Formulario de checkout + datos de sesión Niubiz
+    │   └── ReverseGeocodeRequest.cs          # Request AJAX del botón "Usar mi ubicación"
     ├── Views/                                # Vistas Razor
     │   ├── Products/                         # Vistas de productos
     │   ├── Checkout/                         # Vistas de checkout
     │   └── Shared/                           # Vistas compartidas
     ├── appsettings.json                      # Configuración base
-    ├── appsettings.Development.json          # Configuración desarrollo
-    └── Program.cs                            # Punto de entrada
+    ├── appsettings.Development.json          # Configuración desarrollo (Niubiz + GoogleMaps)
+    └── Program.cs                            # Punto de entrada (incluye SchemaUpgrader al inicio)
 ```
 
 ### Principios Aplicados
@@ -134,9 +143,11 @@ graph TD
     subgraph "APIs Externas"
         F[Niubiz API]
         G[SQLite Database]
+        H[Google Maps Geocoding API]
     end
 
     C -.-> F
+    C -.-> H
     E -.-> G
 ```
 
@@ -157,6 +168,7 @@ graph TD
 
 **Capa Persistence:**
 - `Microsoft.EntityFrameworkCore` (9.0.8)
+- `Microsoft.EntityFrameworkCore.Relational` (9.0.8) — requerido por `SchemaUpgrader` (`DatabaseFacade.GetDbConnection()`)
 - `Microsoft.EntityFrameworkCore.Design` (9.0.8)
 
 ---
@@ -290,6 +302,11 @@ La integración requiere las siguientes credenciales:
     "Username": "usuario@merchant.com",
     "Password": "password123",
     "Currency": "PEN",             // Moneda (PEN/USD)
+    "MerchantUrl": "http://localhost:5110", // dataMap.urlAddress (Autorización)
+    "MerchantCityName": "Lima",                    // dataMap.serviceLocationCityName
+    "MerchantCountrySubdivisionCode": "LIM",       // dataMap.serviceLocationCountrySubdivisionCode
+    "MerchantCountryCode": "PE",                   // dataMap.serviceLocationCountryCode
+    "MerchantPostalCode": "15001",                 // dataMap.serviceLocationPostalCode
     "BaseUrls": {
       "qa": "https://apitestenv.vnforapps.com",
       "prod": "https://apiprod.vnforapps.com"
@@ -298,6 +315,21 @@ La integración requiere las siguientes credenciales:
       "qa": "https://static-content-qas.vnforapps.com/v2/js/checkout.js?qa=true",
       "prod": "https://static-content.vnforapps.com/v2/js/checkout.js"
     },
+    "Endpoints": {
+      "Security": "/api.security/v1/security",
+      "Session": "/api.ecommerce/v2/ecommerce/token/session/{merchantId}",
+      "Authorization": "/api.authorization/v3/authorization/ecommerce/{merchantId}"
+    }
+  },
+  "GoogleMaps": {
+    "ApiKey": "",                  // Requerida solo para el botón "Usar mi ubicación" (reverse geocoding)
+    "GeocodeBaseUrl": "https://maps.googleapis.com/maps/api/geocode/json",
+    "Language": "es"
+  }
+}
+```
+
+> `MerchantCityName`, `MerchantCountrySubdivisionCode`, `MerchantCountryCode` y `MerchantPostalCode` describen la ubicación del **comercio** y se envían en `dataMap` de la Autorización. Los datos del **comprador** (`cardholderCity`, `cardholderCountry`, `cardholderAddress`, `cardholderPostalCode`, `cardholderState`) se capturan en el formulario de checkout y viajan en `dataMap` de la Sesión (ver [Estructura de Datos](#estructura-de-datos)).
     "Endpoints": {
       "Security": "/api.security/v1/security",
       "Session": "/api.ecommerce/v2/ecommerce/token/session/{merchantId}",
@@ -315,13 +347,15 @@ La integración está encapsulada en la clase `NiubizClient`:
 public class NiubizClient : INiubizGateway
 {
     public async Task<string> GetSecurityTokenAsync(CancellationToken ct = default);
-    public async Task<string> CreateSessionAsync(string securityToken, decimal amount, 
-        string purchaseNumber, string currency, CancellationToken ct = default);
-    public async Task<AuthorizationResult> AuthorizeAsync(string securityToken, 
-        string transactionToken, decimal amount, string currency, 
+    public async Task<string> CreateSessionAsync(string securityToken, decimal amount,
+        string purchaseNumber, string currency, CustomerAddressInput address, CancellationToken ct = default);
+    public async Task<AuthorizationResult> AuthorizeAsync(string securityToken,
+        string transactionToken, decimal amount, string currency,
         string purchaseNumber, CancellationToken ct = default);
 }
 ```
+
+`CustomerAddressInput` (dirección, ciudad, departamento/estado, país ISO-2, código postal y teléfono del comprador) se captura en el formulario de checkout y se usa para poblar `dataMap.cardholderCity`, `cardholderCountry`, `cardholderAddress`, `cardholderPostalCode`, `cardholderState` y `cardholderPhoneNumber` al crear la sesión. La autorización, en cambio, usa `NiubizOptions` (ubicación del comercio) para `dataMap.serviceLocation*` y `urlAddress`.
 
 ---
 
@@ -357,6 +391,11 @@ public class NiubizClient : INiubizGateway
     "Username": "integraciones.visanet@necomplus.com",
     "Password": "d5e7nk$M",
     "Currency": "PEN",
+    "MerchantUrl": "http://localhost:5110",
+    "MerchantCityName": "Lima",
+    "MerchantCountrySubdivisionCode": "LIM",
+    "MerchantCountryCode": "PE",
+    "MerchantPostalCode": "15001",
     "BaseUrls": {
       "qa": "https://apitestenv.vnforapps.com",
       "prod": "https://apiprod.vnforapps.com"
@@ -370,6 +409,11 @@ public class NiubizClient : INiubizGateway
       "Session": "/api.ecommerce/v2/ecommerce/token/session/{merchantId}",
       "Authorization": "/api.authorization/v3/authorization/ecommerce/{merchantId}"
     }
+  },
+  "GoogleMaps": {
+    "ApiKey": "",
+    "GeocodeBaseUrl": "https://maps.googleapis.com/maps/api/geocode/json",
+    "Language": "es"
   },
   "ConnectionStrings": {
     "Default": "Data Source=app.db"
@@ -404,7 +448,12 @@ dotnet user-secrets init --project IntegracionNiubizDemo.Web
 dotnet user-secrets set "Niubiz:MerchantId" "su_merchant_id" --project IntegracionNiubizDemo.Web
 dotnet user-secrets set "Niubiz:Username" "su_usuario" --project IntegracionNiubizDemo.Web
 dotnet user-secrets set "Niubiz:Password" "su_password" --project IntegracionNiubizDemo.Web
+dotnet user-secrets set "GoogleMaps:ApiKey" "su_google_maps_api_key" --project IntegracionNiubizDemo.Web
 ```
+
+> Los User Secrets tienen **mayor prioridad** que `appsettings.Development.json` y sobrescriben sus valores en tiempo de ejecución. Si las transacciones usan un `MerchantId` inesperado, revise primero los User Secrets del proyecto Web.
+>
+> `GoogleMaps:ApiKey` es **opcional**: solo se usa para el botón "Usar mi ubicación" (reverse geocoding). Sin ella, el usuario puede completar la dirección manualmente.
 
 ---
 
@@ -446,7 +495,7 @@ dotnet run
 ```
 
 6. **Abrir en el navegador**:
-   - URL: `https://localhost:5001` o `http://localhost:5000`
+   - URL: `https://localhost:7269` o `http://localhost:5110`
 
 ### Scripts Útiles
 
@@ -476,9 +525,10 @@ dotnet watch run
 |--------|------|-------------|------------|
 | `GET` | `/` | Página principal | - |
 | `GET` | `/Products` | Lista de productos | - |
-| `GET` | `/Products/Details/{id}` | Detalle de producto | `id: Guid` |
-| `GET` | `/checkout/pay/{productId}` | Iniciar checkout | `productId: Guid`, `email?: string` |
-| `POST` | `/checkout/confirm` | Confirmar pago | `purchaseNumber, transactionToken` |
+| `GET` | `/checkout/pay/{productId}` | Muestra el formulario de dirección/checkout | `productId: Guid`, `email?: string` |
+| `POST` | `/checkout/pay/{productId}` | Valida dirección e inicia sesión Niubiz | `productId: Guid`, formulario `CheckoutPayViewModel` |
+| `POST` | `/checkout/reverse-geocode` | Resuelve dirección a partir de lat/lng (botón "Usar mi ubicación") | JSON `{ latitude, longitude }` |
+| `POST` | `/checkout/confirm` | Confirmar pago | `purchaseNumber, transactionToken` (o `tokenId`/`token`) |
 
 ### API Controllers
 
@@ -486,31 +536,41 @@ dotnet watch run
 
 **Funcionalidades**:
 - Listar productos disponibles
-- Ver detalles de producto individual
 - Navegación hacia proceso de checkout
 
 **Métodos**:
 ```csharp
-public async Task<IActionResult> Index()           // Lista productos
-public async Task<IActionResult> Details(Guid id) // Detalle producto
+public async Task<IActionResult> Index() // Lista productos
 ```
 
 #### CheckoutController
 
 **Funcionalidades**:
-- Inicializar proceso de pago
+- Mostrar formulario de dirección/ubicación del comprador y datos del producto
+- Inicializar la sesión Niubiz una vez validado el formulario
+- Resolver dirección mediante reverse geocoding (botón "Usar mi ubicación")
 - Confirmar transacción con Niubiz
 - Manejo de respuestas y errores
 
 **Métodos**:
 ```csharp
 [HttpGet("/checkout/pay/{productId:guid}")]
-public async Task<IActionResult> Pay(Guid productId, string? email = null)
+public async Task<IActionResult> Pay(Guid productId, string? email = null, CancellationToken ct = default)
+
+[HttpPost("/checkout/pay/{productId:guid}")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> Pay(Guid productId, CheckoutPayViewModel model, CancellationToken ct = default)
+
+[HttpPost("/checkout/reverse-geocode")]
+public async Task<IActionResult> ReverseGeocode([FromBody] ReverseGeocodeRequest request, CancellationToken ct = default)
 
 [HttpPost("/checkout/confirm")]
 public async Task<IActionResult> Confirm(
     [FromForm] string? purchaseNumber,
-    [FromForm] string? transactionToken)
+    [FromForm] string? transactionToken,
+    [FromForm(Name = "tokenId")] string? tokenId,
+    [FromForm(Name = "token")] string? token,
+    CancellationToken ct = default)
 ```
 
 ### Servicios de Aplicación
@@ -520,7 +580,7 @@ public async Task<IActionResult> Confirm(
 ```csharp
 public interface ICheckoutService
 {
-    Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CancellationToken ct = default);
+    Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CustomerAddressInput address, CancellationToken ct = default);
     Task<ConfirmResult> ConfirmAsync(string purchaseNumber, string transactionToken, CancellationToken ct = default);
 }
 ```
@@ -531,7 +591,17 @@ public interface ICheckoutService
 public interface IProductService
 {
     Task<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default);
+    Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task EnsureSeedDataAsync(CancellationToken ct = default);
+}
+```
+
+#### IGeocodingService
+
+```csharp
+public interface IGeocodingService
+{
+    Task<ReverseGeocodeResult> ReverseGeocodeAsync(double latitude, double longitude, CancellationToken ct = default);
 }
 ```
 
@@ -545,6 +615,7 @@ public interface IProductService
 sequenceDiagram
     participant U as Usuario
     participant W as Web App
+    participant G as GeocodingService
     participant C as CheckoutService
     participant N as NiubizClient
     participant API as Niubiz API
@@ -557,52 +628,68 @@ sequenceDiagram
     C-->>W: 5. Productos
     W-->>U: 6. Mostrar catálogo
 
-    U->>W: 7. Iniciar checkout
-    W->>C: 8. InitAsync(productId, email)
-    C->>DB: 9. Crear Order
-    C->>N: 10. GetSecurityTokenAsync()
-    N->>API: 11. POST /security
-    API-->>N: 12. Security Token
-    C->>N: 13. CreateSessionAsync()
-    N->>API: 14. POST /session/{merchantId}
-    API-->>N: 15. Session Key
-    C->>DB: 16. Guardar PaymentTransaction
-    C-->>W: 17. CheckoutInitResult
-    W-->>U: 18. Formulario de pago
+    U->>W: 7. GET /checkout/pay/{productId}
+    W-->>U: 8. Formulario de dirección/ubicación
 
-    U->>W: 19. Completar datos tarjeta
-    W->>C: 20. ConfirmAsync(purchaseNumber, token)
-    C->>N: 21. AuthorizeAsync()
-    N->>API: 22. POST /authorization/{merchantId}
-    API-->>N: 23. Authorization Result
-    C->>DB: 24. Actualizar Order/Payment
-    C-->>W: 25. ConfirmResult
-    W-->>U: 26. Resultado final
+    opt Usar mi ubicación
+        U->>W: 9. Geolocalización del navegador (lat/lng)
+        W->>G: 10. ReverseGeocodeAsync(lat, lng)
+        G-->>W: 11. Dirección normalizada
+        W-->>U: 12. Autocompletar formulario
+    end
+
+    U->>W: 13. Enviar formulario (POST /checkout/pay/{productId})
+    W->>C: 14. InitAsync(productId, email, CustomerAddressInput)
+    C->>DB: 15. Crear Order (incluye dirección del cliente)
+    C->>N: 16. GetSecurityTokenAsync()
+    N->>API: 17. POST /security
+    API-->>N: 18. Security Token
+    C->>N: 19. CreateSessionAsync(..., address)
+    N->>API: 20. POST /session/{merchantId} (dataMap cardholder*)
+    API-->>N: 21. Session Key
+    C->>DB: 22. Guardar PaymentTransaction
+    C-->>W: 23. CheckoutInitResult
+    W-->>U: 24. Widget de pago Niubiz (checkout.js)
+
+    U->>W: 25. Completar datos tarjeta
+    W->>C: 26. ConfirmAsync(purchaseNumber, token)
+    C->>N: 27. AuthorizeAsync()
+    N->>API: 28. POST /authorization/{merchantId} (dataMap serviceLocation*)
+    API-->>N: 29. Authorization Result
+    C->>DB: 30. Actualizar Order/Payment
+    C-->>W: 31. ConfirmResult
+    W-->>U: 32. Resultado final
 ```
 
 ### Descripción Detallada del Flujo
 
-#### Fase 1: Inicialización del Checkout
+#### Fase 1: Captura de Dirección y Datos del Comprador
 
 1. **Usuario selecciona producto**: Navega desde el catálogo
-2. **Validación de producto**: Verificar existencia y precio
-3. **Creación de orden**: Generar número de compra único
-4. **Obtención de Security Token**: Autenticación con Niubiz
-5. **Creación de sesión**: Inicializar transacción en Niubiz
-6. **Persistencia**: Guardar estado en base de datos
+2. **Formulario de checkout**: Se muestra con dirección, ciudad, departamento/estado, país (ISO-2), código postal y teléfono
+3. **(Opcional) Geolocalización**: El botón "Usar mi ubicación" obtiene lat/lng del navegador y llama a `/checkout/reverse-geocode`, que usa `IGeocodingService` (Google Maps) para autocompletar el formulario
+4. **Validación**: DataAnnotations en `CheckoutPayViewModel` valida los campos en cliente y servidor
 
-#### Fase 2: Captura de Datos de Pago
+#### Fase 2: Inicialización del Checkout
 
-7. **Formulario de pago**: Cargar JavaScript de Niubiz
-8. **Tokenización**: Niubiz tokeniza datos de tarjeta
-9. **Validación**: Verificar datos en el frontend
+5. **Validación de producto**: Verificar existencia y precio
+6. **Creación de orden**: Generar número de compra único y persistir la dirección capturada en `Order`
+7. **Obtención de Security Token**: Autenticación con Niubiz
+8. **Creación de sesión**: `CreateSessionAsync` envía `dataMap.cardholder*` con los datos reales del comprador para el motor antifraude
+9. **Persistencia**: Guardar `PaymentTransaction` con la `SessionKey`
 
-#### Fase 3: Autorización y Confirmación
+#### Fase 3: Captura de Datos de Pago
 
-10. **Envío de token**: Submit del formulario con token
-11. **Autorización**: Procesar pago en Niubiz
-12. **Actualización de estado**: Marcar orden como pagada/rechazada
-13. **Respuesta al usuario**: Mostrar resultado final
+10. **Widget de pago**: Se carga el JavaScript de Niubiz (`checkout.js`) con la `SessionKey`
+11. **Tokenización**: Niubiz tokeniza los datos de tarjeta en el navegador (nunca tocan el servidor propio)
+12. **Validación**: Niubiz valida los datos en el frontend
+
+#### Fase 4: Autorización y Confirmación
+
+13. **Envío de token**: Submit del formulario con `transactionToken`
+14. **Autorización**: `AuthorizeAsync` procesa el pago enviando `dataMap.serviceLocation*` (ubicación del comercio, desde `NiubizOptions`)
+15. **Actualización de estado**: Marcar orden como pagada/rechazada
+16. **Respuesta al usuario**: Mostrar resultado final en `Confirm.cshtml`
 
 ### Estados de Orden
 
@@ -630,16 +717,49 @@ Accept: text/html
 
 **Response**: Página HTML con lista de productos
 
-### Ejemplo 2: Iniciar Checkout
+### Ejemplo 2: Checkout con Captura de Dirección
 
-**Request**:
+**Request (mostrar formulario)**:
 ```http
 GET /checkout/pay/550e8400-e29b-41d4-a716-446655440000?email=cliente@email.com
 ```
 
-**Response**: Formulario de pago con JavaScript de Niubiz
+**Response**: Formulario HTML con campos de dirección/ubicación (país por defecto `PE`)
 
-### Ejemplo 3: Confirmar Pago
+**Request (enviar formulario e iniciar sesión Niubiz)**:
+```http
+POST /checkout/pay/550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/x-www-form-urlencoded
+
+CustomerEmail=cliente@email.com&Address=Av. Siempre Viva 123&City=Lima&State=LIM&Country=PE&PostalCode=15001&Phone=987654321
+```
+
+**Response**: Misma vista con el widget de pago de Niubiz (`checkout.js`) inicializado con la `SessionKey`
+
+### Ejemplo 3: Reverse Geocoding ("Usar mi ubicación")
+
+**Request**:
+```http
+POST /checkout/reverse-geocode
+Content-Type: application/json
+
+{ "latitude": -12.0464, "longitude": -77.0428 }
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "address": "Av. Siempre Viva 123",
+  "city": "Lima",
+  "state": "LIM",
+  "country": "PE",
+  "postalCode": "15001",
+  "error": null
+}
+```
+
+### Ejemplo 4: Confirmar Pago
 
 **Request**:
 ```http
@@ -651,7 +771,7 @@ purchaseNumber=PUR123456789&transactionToken=abc123def456
 
 **Response**: Página de confirmación con resultado
 
-### Ejemplo 4: Integración vía API (Para Terceros)
+### Ejemplo 5: Integración vía API (Para Terceros)
 
 Si desea integrar con otra aplicación, puede usar los servicios directamente:
 
@@ -660,17 +780,25 @@ Si desea integrar con otra aplicación, puede usar los servicios directamente:
 public class MiControlador
 {
     private readonly ICheckoutService _checkout;
-    
+
     public MiControlador(ICheckoutService checkout)
     {
         _checkout = checkout;
     }
-    
-    // Inicializar pago
+
+    // Inicializar pago (requiere la dirección/ubicación del comprador)
     public async Task<ActionResult> IniciarPago(Guid productId)
     {
-        var result = await _checkout.InitAsync(productId, "cliente@email.com");
-        
+        var address = new CustomerAddressInput(
+            Address: "Av. Siempre Viva 123",
+            City: "Lima",
+            State: "LIM",
+            Country: "PE",
+            PostalCode: "15001",
+            Phone: "987654321");
+
+        var result = await _checkout.InitAsync(productId, "cliente@email.com", address);
+
         return Json(new {
             sessionKey = result.SessionKey,
             merchantId = result.MerchantId,
@@ -744,7 +872,11 @@ public class PagosController : ControllerBase
     {
         try
         {
-            var result = await _checkout.InitAsync(request.ProductId, request.Email);
+            var address = new CustomerAddressInput(
+                request.Address, request.City, request.State, request.Country,
+                request.PostalCode, request.Phone);
+
+            var result = await _checkout.InitAsync(request.ProductId, request.Email, address);
             return Ok(result);
         }
         catch (Exception ex)
@@ -752,7 +884,7 @@ public class PagosController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
-    
+
     [HttpPost("confirmar")]
     public async Task<IActionResult> ConfirmarPago([FromBody] ConfirmarPagoRequest request)
     {
@@ -768,7 +900,9 @@ public class PagosController : ControllerBase
     }
 }
 
-public record IniciarPagoRequest(Guid ProductId, string? Email);
+public record IniciarPagoRequest(
+    Guid ProductId, string? Email,
+    string Address, string City, string State, string Country, string PostalCode, string? Phone);
 public record ConfirmarPagoRequest(string PurchaseNumber, string TransactionToken);
 ```
 
@@ -802,10 +936,10 @@ public class MiCheckoutService : ICheckoutService
         _baseService = baseService;
     }
     
-    public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CancellationToken ct = default)
+    public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CustomerAddressInput address, CancellationToken ct = default)
     {
         // Lógica personalizada antes
-        var result = await _baseService.InitAsync(productId, customerEmail, ct);
+        var result = await _baseService.InitAsync(productId, customerEmail, address, ct);
         // Lógica personalizada después
         return result;
     }
@@ -879,6 +1013,15 @@ public class Order
     public DateTimeOffset CreatedAt { get; set; }   // Fecha de creación
     public OrderStatus Status { get; set; }         // Estado de la orden
     public string? CustomerEmail { get; set; }      // Email del cliente
+
+    // Dirección/ubicación del comprador, requerida por Niubiz (dataMap) para
+    // el motor antifraude de la sesión. Se capturan en el formulario de checkout.
+    public string? CustomerAddress { get; set; }
+    public string? CustomerCity { get; set; }
+    public string? CustomerState { get; set; }         // Departamento/región (ej. "LIM")
+    public string? CustomerCountry { get; set; } = "PE"; // ISO 3166-1 alpha-2
+    public string? CustomerPostalCode { get; set; }
+    public string? CustomerPhone { get; set; }
 }
 ```
 
@@ -938,6 +1081,33 @@ public record ConfirmResult(
 );
 ```
 
+#### CustomerAddressInput
+
+```csharp
+public record CustomerAddressInput(
+    string Address,
+    string City,
+    string State,
+    string Country,
+    string PostalCode,
+    string? Phone
+);
+```
+
+#### ReverseGeocodeResult
+
+```csharp
+public record ReverseGeocodeResult(
+    bool Success,
+    string? Address,
+    string? City,
+    string? State,
+    string? Country,
+    string? PostalCode,
+    string? Error
+);
+```
+
 ### Configuración de Base de Datos
 
 Entity Framework está configurado con las siguientes relaciones:
@@ -963,6 +1133,12 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
         b.Property(o => o.Currency).IsRequired().HasMaxLength(3);
         b.Property(o => o.Status).HasConversion<int>();
         b.Property(o => o.CustomerEmail).HasMaxLength(256);
+        b.Property(o => o.CustomerAddress).HasMaxLength(300);
+        b.Property(o => o.CustomerCity).HasMaxLength(100);
+        b.Property(o => o.CustomerState).HasMaxLength(50);
+        b.Property(o => o.CustomerCountry).HasMaxLength(2);
+        b.Property(o => o.CustomerPostalCode).HasMaxLength(20);
+        b.Property(o => o.CustomerPhone).HasMaxLength(20);
     });
 
     // Transacción de Pago
@@ -984,6 +1160,8 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 }
 ```
 
+> **Nota**: el proyecto no usa migraciones formales de EF Core (`dotnet ef migrations`). En su lugar, `SchemaUpgrader.EnsureOrderAddressColumnsAsync` se ejecuta al inicio de la aplicaci\u00f3n (`Program.cs`) y agrega de forma idempotente, vía `ALTER TABLE`, las columnas de direcci\u00f3n a `Orders` si no existen todav\u00eda en `app.db`. Esto evita romper bases de datos SQLite ya creadas por instalaciones previas del demo.
+
 ---
 
 ## Manejo de Errores
@@ -995,12 +1173,14 @@ La aplicación implementa múltiples capas de manejo de errores:
 #### 1. Validación de Entrada
 
 ```csharp
-public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CancellationToken ct = default)
+public async Task<CheckoutInitResult> InitAsync(Guid productId, string? customerEmail, CustomerAddressInput address, CancellationToken ct = default)
 {
+    ArgumentNullException.ThrowIfNull(address);
+
     var product = await _products.GetByIdAsync(productId, ct);
     if (product is null) 
         throw new KeyNotFoundException("Producto no encontrado");
-    
+
     // Continuar con la lógica...
 }
 ```
@@ -1030,22 +1210,36 @@ public async Task<string> GetSecurityTokenAsync(CancellationToken ct = default)
 #### 3. Errores en Controladores
 
 ```csharp
-[HttpGet("/checkout/pay/{productId:guid}")]
-public async Task<IActionResult> Pay(Guid productId, string? email = null, CancellationToken ct = default)
+[HttpPost("/checkout/pay/{productId:guid}")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> Pay(Guid productId, CheckoutPayViewModel model, CancellationToken ct = default)
 {
-    try
-    {
-        var init = await _checkout.InitAsync(productId, email, ct);
-        return View("Pay", init);
-    }
-    catch (KeyNotFoundException)
+    var product = await _products.GetByIdAsync(productId, ct);
+    if (product is null)
     {
         TempData["PaymentMessage"] = "Producto no encontrado. Refresca la lista e inténtalo otra vez.";
         return RedirectToAction("Index", "Products");
     }
-    catch (InvalidOperationException ex)
+
+    if (!ModelState.IsValid)
     {
-        TempData["PaymentMessage"] = $"Error en la integración: {ex.Message}";
+        return View("Pay", model); // Redibuja el formulario con los mensajes de validación
+    }
+
+    try
+    {
+        var address = new CustomerAddressInput(model.Address, model.City, model.State, model.Country, model.PostalCode, model.Phone);
+        var init = await _checkout.InitAsync(productId, model.CustomerEmail, address, ct);
+
+        model.SessionKey = init.SessionKey;
+        model.MerchantId = init.MerchantId;
+        model.PurchaseNumber = init.PurchaseNumber;
+        model.StaticJsUrl = init.StaticJsUrl;
+        return View("Pay", model); // Ahora HasSession = true y se renderiza el widget de Niubiz
+    }
+    catch (KeyNotFoundException)
+    {
+        TempData["PaymentMessage"] = "Producto no encontrado. Refresca la lista e inténtalo otra vez.";
         return RedirectToAction("Index", "Products");
     }
 }
@@ -1137,10 +1331,12 @@ app.UseHttpsRedirection();
 ```
 
 ```csharp
-[HttpPost("/checkout/confirm")]
-[ValidateAntiForgeryToken] // Habilitado cuando sea necesario
-public async Task<IActionResult> Confirm(...)
+[HttpPost("/checkout/pay/{productId:guid}")]
+[ValidateAntiForgeryToken] // Habilitado en el POST que inicia la sesión Niubiz
+public async Task<IActionResult> Pay(Guid productId, CheckoutPayViewModel model, CancellationToken ct = default)
 ```
+
+> **Nota**: `/checkout/confirm` recibe el `POST` generado por el widget de Niubiz (`checkout.js`), que no incluye el antiforgery token del formulario propio, por lo que `[ValidateAntiForgeryToken]` está deshabilitado en ese endpoint. Si se expone este flujo públicamente, valide `purchaseNumber`/`transactionToken` contra el estado persistido en `PaymentTransaction` para mitigar abuso.
 
 #### 4. Cookies Seguras
 
@@ -1247,6 +1443,13 @@ Las contribuciones son bienvenidas. Por favor:
 Este proyecto está bajo la licencia MIT. Ver el archivo `LICENSE` para más detalles.
 
 ### Changelog
+
+#### v1.1.0
+- Corrección del payload de autorización Niubiz (`dataMap.serviceLocation*`) que causaba rechazos (`ACTION_CODE 670`)
+- Captura de dirección/ubicación del comprador en el checkout, persistida en `Order` y enviada a Niubiz (`dataMap.cardholder*`) en la creación de sesión
+- Reverse geocoding opcional vía Google Maps API (botón "Usar mi ubicación") a través de `IGeocodingService`
+- `SchemaUpgrader` para evolucionar el esquema SQLite sin migraciones formales de EF Core
+- Corrección de validación cliente en el campo `Country` (`RegularExpression` en vez de `StringLength` sobre un `<select>`)
 
 #### v1.0.0 (2024-01-XX)
 - Implementación inicial de integración con Niubiz
